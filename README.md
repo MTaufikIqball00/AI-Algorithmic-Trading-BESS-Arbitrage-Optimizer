@@ -103,56 +103,114 @@ flowchart TD
 
 ### A. Efisiensi Round-Trip Non-Linear & Konservasi Energi
 Digital twin memodelkan efisiensi konversi asimetris saat pengisian (*charging*) dan pelepasan (*discharging*):
-$$\eta_{\text{rt}} = \eta_{\text{charge}} \times \eta_{\text{discharge}}$$
-*(Nilai standar: $0.94 \times 0.94 \approx 88.36\%$)*
 
-- **Fase Pengisian Daya ($P_{\text{req}} < 0$)**: Daya diserap dari grid $P_{\text{grid}} = |P_{\text{req}}|$. Energi internal yang berhasil disimpan ke dalam sel baterai:
-  $$E_{\text{stored}} = P_{\text{grid}} \times \Delta t \times \eta_{\text{charge}}$$
-  $$\Delta \text{SoC} = +\frac{E_{\text{stored}}}{E_{\text{nominal}}}$$
-- **Fase Pelepasan Daya ($P_{\text{req}} > 0$)**: Daya dikirim ke grid $P_{\text{grid}} = P_{\text{req}}$. Energi internal baterai yang terkuras:
-  $$E_{\text{delivered}} = P_{\text{grid}} \times \Delta t$$
-  $$E_{\text{depleted}} = \frac{E_{\text{delivered}}}{\eta_{\text{discharge}}}$$
-  $$\Delta \text{SoC} = -\frac{E_{\text{depleted}}}{E_{\text{nominal}}}$$
+$$
+\eta_{\text{rt}} = \eta_{\text{charge}} \times \eta_{\text{discharge}}
+$$
+
+*(Nilai standar: 0.94 × 0.94 ≈ 88.36%)*
+
+#### 1. Fase Pengisian Daya (Charging, P < 0)
+Daya diserap dari jaringan grid sebesar $P_{\text{grid}} = |P_{\text{req}}|$. Energi internal yang tersimpan ke dalam sel baterai:
+
+$$
+E_{\text{stored}} = P_{\text{grid}} \cdot \Delta t \cdot \eta_{\text{charge}}
+$$
+
+$$
+\Delta \text{SoC} = +\frac{E_{\text{stored}}}{E_{\text{nominal}}}
+$$
+
+#### 2. Fase Pelepasan Daya (Discharging, P > 0)
+Daya dikirim ke jaringan grid sebesar $P_{\text{grid}} = P_{\text{req}}$. Energi internal baterai yang terkuras:
+
+$$
+E_{\text{delivered}} = P_{\text{grid}} \cdot \Delta t
+$$
+
+$$
+E_{\text{depleted}} = \frac{E_{\text{delivered}}}{\eta_{\text{discharge}}}
+$$
+
+$$
+\Delta \text{SoC} = -\frac{E_{\text{depleted}}}{E_{\text{nominal}}}
+$$
 
 Konservasi energi ditegakkan secara mutlak: kerugian termal inverter dan sel dipotong pada setiap interval waktu, sehingga tidak ada energi gratis yang dihasilkan.
 
+---
+
 ### B. Amplop Operasi & Batas Fisik Keras (Hard Constraints)
-- **Rentang State of Charge (SoC)**: Terikat ketat pada $[\text{SoC}_{\min}, \text{SoC}_{\max}]$ (default $10\% \dots 90\%$) untuk mencegah degradasi kimiawi elektroda dan pembentukan dendrit litium.
-- **Peringkat Inverter**: Daya aktif tidak boleh melampaui kapasitas nominal inverter $P_{\text{nom}}$ (default $100\text{ MW}$).
-- **Batas Headroom Fisik**:
-  $$P_{\text{charge,max}} = \frac{(\text{SoC}_{\max} - \text{SoC}) \times E_{\text{nominal}}}{\eta_{\text{charge}} \times \Delta t}$$
-  $$P_{\text{discharge,max}} = \frac{(\text{SoC} - \text{SoC}_{\min}) \times E_{\text{nominal}} \times \eta_{\text{discharge}}}{\Delta t}$$
+- **Rentang State of Charge (SoC)**: Terikat ketat pada batas aman 10% hingga 90% (`SoC_min` s.d. `SoC_max`) untuk mencegah degradasi kimiawi elektroda dan pembentukan dendrit litium.
+- **Peringkat Daya Inverter**: Daya aktif tidak boleh melampaui kapasitas nominal inverter `P_nom` (default 100 MW).
+- **Batas Headroom Fisik Pengisian dan Pelepasan Daya**:
+
+$$
+P_{\text{charge,max}} = \frac{(\text{SoC}_{\max} - \text{SoC}) \cdot E_{\text{nominal}}}{\eta_{\text{charge}} \cdot \Delta t}
+$$
+
+$$
+P_{\text{discharge,max}} = \frac{(\text{SoC} - \text{SoC}_{\min}) \cdot E_{\text{nominal}} \cdot \eta_{\text{discharge}}}{\Delta t}
+$$
+
+---
 
 ### C. Pemodelan Degradasi Throughput & Biaya Siklus
 Biaya degradasi sel baterai dihitung pada setiap langkah keputusan berdasarkan pemakaian throughput energi:
-$$C_{\text{deg}} = \text{Throughput (MWh)} \times \frac{\text{Biaya Penggantian Sel per MWh}}{2 \times \text{Cycle Life Nominal}}$$
+
+$$
+C_{\text{deg}} = \text{Throughput} \times \frac{\text{Biaya Penggantian Sel per MWh}}{2 \times \text{Cycle Life Nominal}}
+$$
+
 Equivalent Full Cycles (EFC) dan State of Health (SOH) dilacak secara kontinu:
-$$\text{EFC} = \frac{\text{Throughput Kumulatif (MWh)}}{2 \times E_{\text{nominal}}}$$
-$$\text{SOH}(t) = 1.0 - (1.0 - \text{SOH}_{\text{EOL}}) \times \frac{\text{EFC}(t)}{\text{Cycle Life Nominal}}$$
+
+$$
+\text{EFC} = \frac{\text{Throughput Kumulatif}}{2 \cdot E_{\text{nominal}}}
+$$
+
+$$
+\text{SOH}(t) = 1.0 - (1.0 - \text{SOH}_{\text{EOL}}) \times \frac{\text{EFC}(t)}{\text{Cycle Life Nominal}}
+$$
 
 ---
 
 ## 4. Kecerdasan Buatan & Machine Learning
 
 ### A. Peramal Harga XGBoost (XGBoost Price Forecaster)
-- **Feature Engineering Kausal Tanpa Kebocoran Informasi (Zero Lookahead)**: Hanya menggunakan lag harga historis ($t-1, t-2, t-24, t-48, t-168$), statistik bergulir ($24\text{ jam}, 168\text{ jam}$) dengan pergeseran waktu 1 langkah (`.shift(1)`), *cyclical sine/cosine calendar encoding* (jam, hari, bulan), dan harga pasar Day-Ahead yang telah dirilis hari sebelumnya.
+- **Feature Engineering Kausal Tanpa Kebocoran Informasi (Zero Lookahead)**: Hanya menggunakan lag harga historis ($t-1, t-2, t-24, t-48, t-168$), statistik bergulir (24 jam, 168 jam) dengan pergeseran waktu 1 langkah (`.shift(1)`), *cyclical sine/cosine calendar encoding* (jam, hari, bulan), dan harga pasar Day-Ahead yang telah dirilis hari sebelumnya.
 - **Pemisahan Waktu Chronological Walk-Forward**:
   - Jendela Latih (*Train*): 70% awal dari garis waktu kronologis.
   - Jendela Validasi (*Validation*): 15% berikutnya.
   - Jendela Uji (*Out-of-Sample Test*): 15% akhir.
   *(Pemisahan acak/k-fold dilarang keras untuk mencegah kebocoran informasi masa depan).*
 - **Kuantifikasi Ketidakpastian (Uncertainty Quantification)**: Deviasi standar residual empiris $\hat{\sigma}$ menghitung interval prediksi parametrik 80% ($z = 1.282$) dan 95% ($z = 1.960$):
-  $$\hat{y} \pm z \times \hat{\sigma}$$
-- **Evaluasi Baseline yang Adil**: Dibandingkan langsung dengan model acuan **Persistence Naive** ($\hat{y}_t = y_{t-1}$) dan **Seasonal Naive** ($\hat{y}_t = y_{t-24}$).
+
+$$
+\hat{y} \pm z \cdot \hat{\sigma}
+$$
+
+- **Evaluasi Baseline yang Adil**: Dibandingkan langsung dengan model acuan:
+  - Persistence Naive: $y(t-1)$
+  - Seasonal Naive: $y(t-24)$
+
+---
 
 ### B. Kebijakan Reinforcement Learning PPO (PyTorch)
 - **Lingkungan Kompatibel Gymnasium**: Markov Decision Process (MDP) yang memodelkan SoC baterai, harga LMP pasar, perkiraan Day-Ahead, *forecast spread*, waktu kalender, dan status dispatch saat ini.
-- **Ruang Aksi Kontinu**: $a_t \in [-1.0, 1.0]$ mewakili rasio daya pengisian atau pelepasan terhadap daya nominal.
+- **Ruang Aksi Kontinu**: $a \in [-1.0, 1.0]$ mewakili rasio daya pengisian atau pelepasan terhadap daya nominal.
 - **Proyeksi Aksi Terikat Analitik (Analytic Action Projection)**:
-  $$\pi(s) \rightarrow a_{\text{proj}} = \operatorname{proj}(a, \text{SoC}, P_{\text{nom}}, \eta)$$
-  Fungsi proyeksi ini memetakan aksi agen secara analitik ke batas fisik baterai yang diizinkan sebelum diteruskan ke simulator. Hal ini menjamin 100% kepatuhan terhadap batas fisik tanpa melanggar batasan inverter maupun kapasitas.
+
+$$
+\pi(s) \rightarrow a_{\text{proj}} = \min\left(\max\left(a, a_{\min}\right), a_{\max}\right)
+$$
+
+Fungsi proyeksi analitik ini memetakan aksi agen secara matematis ke batas fisik baterai yang diizinkan sebelum diteruskan ke simulator. Hal ini menjamin 100% kepatuhan terhadap batas fisik tanpa melanggar batasan inverter maupun kapasitas.
+
 - **Fungsi Reward Komprehensif**:
-  $$R_t = \text{Pendapatan Kotor} - \text{Biaya Pengisian} - C_{\text{deg}} - \text{Biaya Jaringan/Transaksi}$$
+
+$$
+R_t = \text{Pendapatan Kotor} - \text{Biaya Pengisian} - C_{\text{deg}} - \text{Biaya Jaringan/Transaksi}
+$$
 
 ---
 
@@ -178,7 +236,7 @@ Antarmuka dibangun dengan **React 19**, **TypeScript**, **Tailwind CSS v4**, **R
   - Harga negatif hingga mencapai **-$54.38/MWh** saat pemangkasan pembangkit surya siang hari (*curtailment*).
   - Lonjakan harga petang hari (*evening ramp*) hingga mencapai **$397.66/MWh**.
   - Harga rata-rata pasar: **$39.88/MWh** dengan deviasi standar **$28.94/MWh**.
-- **Kamus Data (Data Dictionary)**: Spesifikasi satuan, batasan rentang valid, penanganan nilai hilang, dan rekam jejak sumber didokumentasikan di [`data/datasets/data_dictionary.md`](file:///c:/Users/taufi/Documents/Projects/AI%20Algorithmic%20Trading%20&%20BESS%20Arbitrage%20Optimizer/data/datasets/data_dictionary.md).
+- **Kamus Data (Data Dictionary)**: Spesifikasi satuan, batasan rentang valid, penanganan nilai hilang, dan rekam jejak sumber didokumentasikan di [`data/datasets/data_dictionary.md`](data/datasets/data_dictionary.md).
 
 ---
 
@@ -253,7 +311,7 @@ cargo test
 ```
 *Pengujian yang Berhasil:*
 - `test_round_trip_efficiency_and_losses`: Memverifikasi konversi efisiensi bolak-balik non-linear 88.36% dan pemotongan rugi termal.
-- `test_hard_soc_bounds_enforcement`: Memastikan SoC baterai tidak pernah melanggar batas $[\text{SoC}_{\min}, \text{SoC}_{\max}]$.
+- `test_hard_soc_bounds_enforcement`: Memastikan SoC baterai tidak pernah melanggar batas aman 10% s.d. 90%.
 - `test_inverter_power_rating_limit`: Memverifikasi penolakan oleh Risk Manager saat permintaan MW melebihi batas inverter.
 - `test_kill_switch_blocks_orders`: Memverifikasi penghentian order secara atomik seketika saat tombol darurat aktif.
 - `test_backtest_determinism_and_baselines`: Memastikan pemutaran ulang backtest 100% deterministik dan perhitungan baseline adil.
@@ -266,7 +324,7 @@ python -m pytest tests -v
 *Pengujian yang Berhasil:*
 - `test_feature_engineering_no_future_leakage`: Membuktikan nol kebocoran informasi masa depan (*zero lookahead*) pada lag fitur.
 - `test_bess_env_physics_and_constraints`: Memastikan lingkungan Gymnasium mematuhi hukum fisika baterai dan efisiensi konversi.
-- `test_ppo_agent_action_bounds`: Memverifikasi bahwa aksi kontinu jaringan Actor-Critic dibatasi secara ketat dalam $[-1.0, 1.0]$.
+- `test_ppo_agent_action_bounds`: Memverifikasi bahwa aksi kontinu jaringan Actor-Critic dibatasi secara ketat dalam rentang aman.
 
 ### C. Build Produksi Frontend
 ```bash
