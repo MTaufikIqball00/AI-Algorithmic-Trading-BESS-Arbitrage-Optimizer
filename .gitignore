@@ -1,0 +1,30 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node.js & Frontend
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Python & ML
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+
+# Databases & Runtime logs
+*.db
+*.db-shm
+*.db-wal
+logs/*.log
+logs/*.pid
+
+# Environment & Secrets
+.env
+.DS_Store
+Thumbs.db
