@@ -19,19 +19,37 @@ function Stop-AppProcesses {
             $p = Get-Content $file -ErrorAction SilentlyContinue
             if ($p) {
                 Write-Host "Stopping process PID $p..." -ForegroundColor Gray
+                cmd /c "taskkill /F /T /PID $p 2>nul" | Out-Null
                 Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
             }
             Remove-Item $file -Force -ErrorAction SilentlyContinue
         }
+    }
+    # Clean up any leftover processes on target ports
+    foreach ($port in @(3230, 8230, 8231)) {
+        try {
+            $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+            foreach ($conn in $conns) {
+                if ($conn.OwningProcess -gt 0) {
+                    Write-Host "Releasing port $port (PID $($conn.OwningProcess))..." -ForegroundColor Gray
+                    cmd /c "taskkill /F /T /PID $($conn.OwningProcess) 2>nul" | Out-Null
+                }
+            }
+        } catch {}
     }
     Write-Host 'All registered application processes stopped.' -ForegroundColor Green
 }
 
 function Test-PortListening ($port) {
     try {
-        return (Test-NetConnection -Port $port -ComputerName 127.0.0.1 -WarningAction SilentlyContinue -InformationLevel Quiet)
+        $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+        return ($null -ne $conn)
     } catch {
-        return $false
+        try {
+            return (Test-NetConnection -Port $port -ComputerName 127.0.0.1 -WarningAction SilentlyContinue -InformationLevel Quiet)
+        } catch {
+            return $false
+        }
     }
 }
 
@@ -76,7 +94,7 @@ Write-Host '  [OK] Rust/Cargo, Node.js, and Python detected.' -ForegroundColor G
 Write-Host '[2/5] Checking target ports (8231, 8230, 3230)...' -ForegroundColor White
 foreach ($p in 8231, 8230, 3230) {
     if (Test-PortListening $p) {
-        Write-Host "Warning: Port $p is currently in use. Attempting to clean up previous instances..." -ForegroundColor Yellow
+        Write-Host "Warning: Port $p is currently in use. Cleaning up previous instances..." -ForegroundColor Yellow
         Stop-AppProcesses
         Start-Sleep -Seconds 1
         break
@@ -99,15 +117,27 @@ Write-Host "  [OK] ML Service started (PID: $($mlProcess.Id))." -ForegroundColor
 # 4. Start Rust Control Plane (Port 8230)
 Write-Host '[4/5] Starting Rust Control Plane API on port 8230...' -ForegroundColor White
 $backendDir = Join-Path $RootDir "backend"
+$backendExe = Join-Path $backendDir "target\debug\backend.exe"
+if (-not (Test-Path $backendExe)) {
+    Write-Host '  Building Rust backend binary...' -ForegroundColor White
+    Push-Location $backendDir
+    cargo build
+    Pop-Location
+}
 $backendPsi = New-Object System.Diagnostics.ProcessStartInfo
-$backendPsi.FileName = "cargo"
-$backendPsi.Arguments = "run"
+if (Test-Path $backendExe) {
+    $backendPsi.FileName = $backendExe
+    $backendPsi.Arguments = ""
+} else {
+    $backendPsi.FileName = "cargo"
+    $backendPsi.Arguments = "run"
+}
 $backendPsi.WorkingDirectory = $backendDir
 $backendPsi.UseShellExecute = $true
 $backendPsi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
 $backendProcess = [System.Diagnostics.Process]::Start($backendPsi)
 $backendProcess.Id | Out-File $BackendPidFile -Encoding ASCII
-Write-Host "  [OK] Rust API starting (PID: $($backendProcess.Id))." -ForegroundColor Green
+Write-Host "  [OK] Rust API started (PID: $($backendProcess.Id))." -ForegroundColor Green
 
 # 5. Start Frontend Dev Server (Port 3230)
 Write-Host '[5/5] Starting Frontend Dev Terminal on port 3230...' -ForegroundColor White
@@ -120,7 +150,7 @@ $frontendPsi.UseShellExecute = $true
 $frontendPsi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
 $frontendProcess = [System.Diagnostics.Process]::Start($frontendPsi)
 $frontendProcess.Id | Out-File $FrontendPidFile -Encoding ASCII
-Write-Host "  [OK] Frontend UI starting (PID: $($frontendProcess.Id))." -ForegroundColor Green
+Write-Host "  [OK] Frontend UI started (PID: $($frontendProcess.Id))." -ForegroundColor Green
 
 # Wait and Probe Health Checks
 Write-Host ''

@@ -94,6 +94,9 @@ impl BacktestEngine {
 
         let mut equity_curve = Vec::with_capacity(slice.len());
         let mut cumulative_pnl = 0.0;
+        let mut cumulative_gross_revenue = 0.0;
+        let mut cumulative_charging_cost = 0.0;
+        let mut cumulative_transaction_fees = 0.0;
         let mut peak_pnl = 0.0;
         let mut max_drawdown = 0.0;
         let mut step_profits = Vec::with_capacity(slice.len());
@@ -149,6 +152,9 @@ impl BacktestEngine {
 
             let step_res = twin.step(requested_power, 1.0, point.price_actual);
             cumulative_pnl += step_res.net_profit;
+            cumulative_gross_revenue += step_res.gross_revenue;
+            cumulative_charging_cost += step_res.charging_cost;
+            cumulative_transaction_fees += step_res.transaction_fee;
             step_profits.push(step_res.net_profit);
 
             if step_res.actual_power_mw.abs() > 0.1 {
@@ -211,13 +217,10 @@ impl BacktestEngine {
         let metrics = BacktestMetrics {
             strategy_name,
             total_steps: slice.len(),
-            gross_revenue: (twin.get_state().total_throughput_mwh * 0.5 * 100.0).round() / 100.0, // approx tracking
-            charging_cost: ((twin.total_charged_mwh * 50.0) * 100.0).round() / 100.0,
+            gross_revenue: (cumulative_gross_revenue * 100.0).round() / 100.0,
+            charging_cost: (cumulative_charging_cost * 100.0).round() / 100.0,
             degradation_cost: (twin.cumulative_degradation_cost * 100.0).round() / 100.0,
-            transaction_fees: ((twin.total_throughput_mwh * config.transaction_fee_per_mwh)
-                * 100.0)
-                .round()
-                / 100.0,
+            transaction_fees: (cumulative_transaction_fees * 100.0).round() / 100.0,
             net_profit: (cumulative_pnl * 100.0).round() / 100.0,
             total_discharged_mwh: (twin.total_discharged_mwh * 100.0).round() / 100.0,
             total_charged_mwh: (twin.total_charged_mwh * 100.0).round() / 100.0,
