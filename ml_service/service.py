@@ -12,7 +12,16 @@ from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
 import torch
-import xgboost as xgb
+import sys
+import math
+import asyncio
+
+# Fix Windows asyncio Proactor connection lost exception spam
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 from forecaster.xgboost_model import PriceForecaster
 from rl.bess_env import BessEnv
@@ -32,19 +41,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_PATH = "data/datasets/caiso_hourly_benchmark_2024.csv"
+def resolve_dataset_path(path: Optional[str] = None) -> str:
+    candidates = [
+        path,
+        "data/datasets/caiso_hourly_benchmark_2024.csv",
+        "../data/datasets/caiso_hourly_benchmark_2024.csv",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "datasets", "caiso_hourly_benchmark_2024.csv"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "datasets", "caiso_hourly_benchmark_2024.csv"),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return os.path.abspath(c)
+    return path or "data/datasets/caiso_hourly_benchmark_2024.csv"
+
+def resolve_meta_path(filename: str = "xgboost_metadata.json") -> str:
+    candidates = [
+        os.path.join("data", "models", filename),
+        os.path.join("..", "data", "models", filename),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "models", filename),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "models", filename),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return os.path.abspath(c)
+    return os.path.join("data", "models", filename)
+
+DATA_PATH = resolve_dataset_path()
 forecaster = PriceForecaster()
 ppo_agent = PPOAgent()
 
+@app.on_event("startup")
+def startup_event():
+    # Ensure forecaster is trained or initialized on startup
+    meta_path = resolve_meta_path("xgboost_metadata.json")
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, "r") as f:
+                forecaster.metadata = json.load(f)
+                forecaster.residual_std = forecaster.metadata.get("prediction_interval_std", 5.0)
+        except Exception:
+            pass
+    elif os.path.exists(DATA_PATH):
+        try:
+            df = pd.read_csv(DATA_PATH)
+            forecaster.train(df)
+        except Exception as e:
+            print(f"Notice on auto-train: {e}")
+
 class TrainForecastRequest(BaseModel):
-    dataset_path: Optional[str] = DATA_PATH
+    dataset_path: Optional[str] = None
 
 class PredictForecastRequest(BaseModel):
-    dataset_path: Optional[str] = DATA_PATH
+    dataset_path: Optional[str] = None
     horizon: int = Field(24, ge=1, le=168)
 
 class RlTrainRequest(BaseModel):
-    dataset_path: Optional[str] = DATA_PATH
+    dataset_path: Optional[str] = None
     episodes: int = Field(15, ge=1, le=100)
     steps_per_episode: int = Field(336, ge=48, le=2000) # 336 hours = 2 weeks
     e_nom_mwh: float = 100.0
@@ -78,7 +130,7 @@ def health_check():
 
 @app.post("/forecast/train")
 def train_forecast(req: TrainForecastRequest):
-    path = req.dataset_path or DATA_PATH
+    path = resolve_dataset_path(req.dataset_path)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"Dataset not found at {path}")
     
@@ -95,7 +147,7 @@ def train_forecast(req: TrainForecastRequest):
 
 @app.get("/forecast/metrics")
 def get_forecast_metrics():
-    meta_path = "data/models/xgboost_metadata.json"
+    meta_path = resolve_meta_path("xgboost_metadata.json")
     if os.path.exists(meta_path):
         with open(meta_path, "r") as f:
             return json.load(f)
@@ -106,7 +158,7 @@ def get_forecast_metrics():
 
 @app.post("/forecast/predict")
 def predict_forecast(req: PredictForecastRequest):
-    path = req.dataset_path or DATA_PATH
+    path = resolve_dataset_path(req.dataset_path)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"Dataset not found at {path}")
     
@@ -123,7 +175,7 @@ def predict_forecast(req: PredictForecastRequest):
 
 @app.post("/rl/train")
 def train_rl(req: RlTrainRequest):
-    path = req.dataset_path or DATA_PATH
+    path = resolve_dataset_path(req.dataset_path)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"Dataset not found at {path}")
 
@@ -254,14 +306,14 @@ def rl_act(req: RlActRequest):
     }
 
 @app.post("/rl/evaluate")
-def evaluate_strategies(dataset_path: Optional[str] = DATA_PATH, eval_days: int = 30):
+def evaluate_strategies(dataset_path: Optional[str] = None, eval_days: int = 30):
     """
     Honest head-to-head comparison of PPO RL Agent vs Fair Baselines:
     1. Idle Baseline (No-trade)
     2. Heuristic Price-Threshold (Buy below 25th percentile, sell above 75th percentile)
     Evaluated strictly on identical out-of-sample window with full degradation and transaction fees.
     """
-    path = dataset_path or DATA_PATH
+    path = resolve_dataset_path(dataset_path)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Dataset not found")
 

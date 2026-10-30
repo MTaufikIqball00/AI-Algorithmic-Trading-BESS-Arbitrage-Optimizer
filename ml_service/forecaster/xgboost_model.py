@@ -13,8 +13,20 @@ from .feature_engineering import engineer_features, FEATURE_COLUMNS
 
 class PriceForecaster:
     def __init__(self, model_dir: str = "data/models"):
-        self.model_dir = model_dir
-        os.makedirs(model_dir, exist_ok=True)
+        # Resolve model_dir relative to current working directory or package location
+        candidates = [
+            model_dir,
+            os.path.join("..", model_dir),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", model_dir),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", model_dir),
+        ]
+        chosen = model_dir
+        for c in candidates:
+            if os.path.exists(c):
+                chosen = os.path.abspath(c)
+                break
+        self.model_dir = chosen
+        os.makedirs(self.model_dir, exist_ok=True)
         self.model = None
         self.metadata = {}
         self.residual_std = 5.0 # default fallback uncertainty
@@ -131,6 +143,12 @@ class PriceForecaster:
         """
         if self.model is None:
             model_path = os.path.join(self.model_dir, "xgboost_price_model.json")
+            if not os.path.exists(model_path):
+                for alt in ["../data/models/xgboost_price_model.json", "data/models/xgboost_price_model.json"]:
+                    if os.path.exists(alt):
+                        model_path = os.path.abspath(alt)
+                        self.model_dir = os.path.dirname(model_path)
+                        break
             if os.path.exists(model_path):
                 self.model = xgb.XGBRegressor()
                 self.model.load_model(model_path)
@@ -140,12 +158,12 @@ class PriceForecaster:
                         self.metadata = json.load(f)
                         self.residual_std = self.metadata.get("prediction_interval_std", 5.0)
             else:
-                raise RuntimeError("Model not trained yet. Call train() first.")
+                self.train(df_raw)
 
         df_feat = engineer_features(df_raw)
         latest_rows = df_feat.tail(horizon).copy()
         
-        X = latest_rows[FEATURE_COLUMNS].fillna(method='ffill').fillna(0)
+        X = latest_rows[FEATURE_COLUMNS].ffill().fillna(0)
         preds = self.model.predict(X)
 
         results = []

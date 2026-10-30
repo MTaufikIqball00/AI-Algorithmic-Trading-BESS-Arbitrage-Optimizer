@@ -1,0 +1,48 @@
+{
+  "model_type": "XGBoost Regressor",
+  "version": "1.0.0",
+  "trained_at": "2026-10-30T05:42:18.397263Z",
+  "samples_train": 6031,
+  "samples_val": 1292,
+  "samples_test": 1293,
+  "test_metrics": {
+    "mae": 7.45,
+    "rmse": 19.25,
+    "mape_percent": 10.58,
+    "residual_std": 19.22
+  },
+  "baseline_comparisons": {
+    "persistence_lag1": {
+      "mae": 16.61,
+      "rmse": 30.96
+    },
+    "seasonal_naive_lag24": {
+      "mae": 20.5,
+      "rmse": 36.1
+    },
+    "improvement_vs_naive_percent": 63.7
+  },
+  "feature_importance": {
+    "price_day_ahead": 0.5493318438529968,
+    "price_lag_168": 0.13930903375148773,
+    "hour_sin": 0.030625928193330765,
+    "price_lag_24": 0.026530558243393898,
+    "hour_cos": 0.025315912440419197,
+    "price_lag_1": 0.024617400020360947,
+    "price_roll_mean_24": 0.019920336082577705,
+    "price_roll_std_24": 0.018483443185687065,
+    "temperature_c": 0.0184019822627306,
+    "price_lag_3": 0.017905138432979584,
+    "price_lag_2": 0.017124885693192482,
+    "price_lag_48": 0.015982210636138916,
+    "system_load_mw_lag24": 0.015966519713401794,
+    "price_roll_min_24": 0.014100152999162674,
+    "solar_gen_mw_lag24": 0.01399216242134571,
+    "price_roll_mean_168": 0.013575668446719646,
+    "price_roll_max_24": 0.012801378034055233,
+    "dow_cos": 0.012010550126433372,
+    "dow_sin": 0.010337471030652523,
+    "is_weekend": 0.003667434211820364
+  },
+  "prediction_interval_std": 19.22
+}
