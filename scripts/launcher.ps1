@@ -106,7 +106,7 @@ Write-Host '[3/5] Starting Python ML Service (XGBoost and PyTorch PPO) on port 8
 $mlDir = Join-Path $RootDir "ml_service"
 $mlPsi = New-Object System.Diagnostics.ProcessStartInfo
 $mlPsi.FileName = "python"
-$mlPsi.Arguments = "-m uvicorn service:app --host 127.0.0.1 --port 8231"
+$mlPsi.Arguments = "-m uvicorn service:app --host 127.0.0.1 --port 8231 --reload"
 $mlPsi.WorkingDirectory = $mlDir
 $mlPsi.UseShellExecute = $true
 $mlPsi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
@@ -132,7 +132,7 @@ if (Test-Path $backendExe) {
     $backendPsi.FileName = "cargo"
     $backendPsi.Arguments = "run"
 }
-$backendPsi.WorkingDirectory = $backendDir
+$backendPsi.WorkingDirectory = $RootDir
 $backendPsi.UseShellExecute = $true
 $backendPsi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
 $backendProcess = [System.Diagnostics.Process]::Start($backendPsi)

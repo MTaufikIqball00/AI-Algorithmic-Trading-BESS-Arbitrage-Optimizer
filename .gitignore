@@ -23,6 +23,8 @@ __pycache__/
 *.db-wal
 logs/*.log
 logs/*.pid
+data/datasets/active_market_dataset.csv
+backend/data/
 
 # Environment & Secrets
 .env

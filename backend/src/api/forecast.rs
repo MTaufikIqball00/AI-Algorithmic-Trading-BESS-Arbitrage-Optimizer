@@ -19,13 +19,15 @@ pub async fn predict_forecast(
     let horizon = params.horizon.unwrap_or(24).min(168);
     let ml_url = format!("{}/forecast/predict", state.ml_service_url);
 
+    let dataset_path = crate::api::market::get_active_dataset_path();
+
     // Call ML service
     let res = state
         .http_client
         .post(&ml_url)
         .json(&json!({
             "horizon": horizon,
-            "dataset_path": "data/datasets/active_market_dataset.csv"
+            "dataset_path": dataset_path
         }))
         .send()
         .await;
@@ -67,11 +69,12 @@ pub async fn predict_forecast(
 
 pub async fn train_forecast(State(state): State<AppState>) -> impl IntoResponse {
     let ml_url = format!("{}/forecast/train", state.ml_service_url);
+    let dataset_path = crate::api::market::get_active_dataset_path();
     let res = state
         .http_client
         .post(&ml_url)
         .json(&json!({
-            "dataset_path": "data/datasets/active_market_dataset.csv"
+            "dataset_path": dataset_path
         }))
         .send()
         .await;

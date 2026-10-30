@@ -122,9 +122,11 @@ pub async fn import_market_csv(
         *ds = new_points;
     }
 
-    // Persist active dataset to disk so ML service (Python) trains and predicts on the current imported data
+    // Persist active dataset to disk so ML service (Python) trains and predicts on current imported data
     let _ = tokio::fs::create_dir_all("data/datasets").await;
     let _ = tokio::fs::write("data/datasets/active_market_dataset.csv", &payload.csv_content).await;
+    let _ = tokio::fs::create_dir_all("../data/datasets").await;
+    let _ = tokio::fs::write("../data/datasets/active_market_dataset.csv", &payload.csv_content).await;
 
     Json(json!({
         "status": "success",
@@ -132,4 +134,22 @@ pub async fn import_market_csv(
         "message": format!("Successfully imported and verified {} market interval records", count)
     }))
     .into_response()
+}
+
+pub fn get_active_dataset_path() -> String {
+    let p1 = std::path::Path::new("data/datasets/active_market_dataset.csv");
+    if p1.exists() {
+        if let Ok(canon) = std::fs::canonicalize(p1) {
+            return canon.to_string_lossy().to_string();
+        }
+        return p1.to_string_lossy().to_string();
+    }
+    let p2 = std::path::Path::new("../data/datasets/active_market_dataset.csv");
+    if p2.exists() {
+        if let Ok(canon) = std::fs::canonicalize(p2) {
+            return canon.to_string_lossy().to_string();
+        }
+        return p2.to_string_lossy().to_string();
+    }
+    "data/datasets/active_market_dataset.csv".to_string()
 }
