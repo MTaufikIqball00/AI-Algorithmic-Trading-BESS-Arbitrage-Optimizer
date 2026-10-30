@@ -10,7 +10,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Platform terintegrasi skala industri untuk **Optimasi Arbitrase & Algorithmic Trading Battery Energy Storage System (BESS)** pada pasar listrik grosir (*wholesale electricity markets* seperti CAISO, ERCOT, dan NEM).
+Platform terintegrasi skala industri untuk **Optimasi Arbitrase & Algorithmic Trading Battery Energy Storage System (BESS)** pada pasar listrik grosir (*wholesale electricity markets* seperti CAISO, ERCOT, dan pasar Eropa ENTSO-E).
 
 Sistem ini menjembatani batas fisik elektrokimia baterai nyata, peramalan harga listrik (*price forecasting*) dengan Machine Learning, optimasi *dispatch* berbasis Reinforcement Learning, mesin *backtesting* deterministik berkecepatan tinggi, manajemen risiko *pre-trade*, dan terminal perdagangan interaktif berbasis web.
 
@@ -18,15 +18,17 @@ Sistem ini menjembatani batas fisik elektrokimia baterai nyata, peramalan harga 
 
 ## Daftar Isi
 1. [Gambaran Umum & Nilai Utama](#1-gambaran-umum--nilai-utama)
-2. [Arsitektur Sistem](#2-arsitektur-sistem)
-3. [Pemodelan Fisika BESS & Ketelitian Matematis](#3-pemodelan-fisika-bess--ketelitian-matematis)
-4. [Kecerdasan Buatan & Machine Learning](#4-kecerdasan-buatan--machine-learning)
-5. [Terminal Trading Frontend](#5-terminal-trading-frontend)
-6. [Tata Kelola Data & Benchmark CAISO 2024](#6-tata-kelola-data--benchmark-caiso-2024)
-7. [Spesifikasi API](#7-spesifikasi-api)
-8. [Panduan Instalasi & Menjalankan Aplikasi](#8-panduan-instalasi--menjalankan-aplikasi)
-9. [Verifikasi Pengujian & Quality Gates](#9-verifikasi-pengujian--quality-gates)
-10. [Manajemen Risiko & Keamanan Operasional](#10-manajemen-risiko--keamanan-operasional)
+2. [Pratinjau Antarmuka Terminal Trading](#2-pratinjau-antarmuka-terminal-trading)
+3. [Arsitektur Sistem](#3-arsitektur-sistem)
+4. [Pemodelan Fisika BESS & Ketelitian Matematis](#4-pemodelan-fisika-bess--ketelitian-matematis)
+5. [Kecerdasan Buatan & Machine Learning](#5-kecerdasan-buatan--machine-learning)
+6. [Terminal Trading Frontend](#6-terminal-trading-frontend)
+7. [Tata Kelola Data, Multi-Pasar & Alat Konversi Benchmark](#7-tata-kelola-data-multi-pasar--alat-konversi-benchmark)
+8. [Spesifikasi API](#8-spesifikasi-api)
+9. [Panduan Instalasi & Menjalankan Aplikasi](#9-panduan-instalasi--menjalankan-aplikasi)
+10. [Verifikasi Pengujian & Quality Gates](#10-verifikasi-pengujian--quality-gates)
+11. [Manajemen Risiko & Keamanan Operasional](#11-manajemen-risiko--keamanan-operasional)
+12. [Lisensi](#lisensi)
 
 ---
 
@@ -36,7 +38,7 @@ Pasar listrik grosir modern ditandai oleh volatilitas harga yang sangat ekstrem 
 
 Namun, strategi arbitrase naif sering kali gagal di dunia nyata karena:
 - **Rugi Daya Bolak-Balik (Round-Trip Losses)**: Mengabaikan efisiensi konversi termal saat pengisian dan pelepasan mengikis margin arbitrase tipis.
-- **Biaya Degradasi Baterai & Umur Siklus**: Siklus pengisian yang tidak terkendali mempercepat degradasi sel dan memicu biaya penggantian baterai yang mahal.
+- **Biaya Degradasi Baterai & Hurdle Rate**: Siklus pengisian yang tidak terkendali mempercepat degradasi sel sehingga biaya keausan fisik baterai melampaui keuntungan selisih energi (*asset cannibalization*).
 - **Lookahead Bias & Data Snooping**: Model Machine Learning yang dilatih tanpa pemisahan temporal yang ketat menghasilkan profitabilitas palsu.
 - **Pelanggaran Batas Fisik Inverter & SoC**: Perintah dispatch yang melanggar batas MW inverter atau cadangan State of Charge (SoC) akan memicu trip proteksi perangkat keras.
 
@@ -47,7 +49,37 @@ Namun, strategi arbitrase naif sering kali gagal di dunia nyata karena:
 
 ---
 
-## 2. Arsitektur Sistem
+## 2. Pratinjau Antarmuka Terminal Trading
+
+Berikut adalah dokumentasi visual dari fitur-fitur operasional terminal trading:
+
+### A. Dinamika Pasar Listrik & Peramalan XGBoost (Market & Forecast)
+![Electricity Market Dynamics & XGBoost Forecasting](docs/images/market_forecast_xgboost.png)
+
+Panel ini menyediakan analitik peramalan harga pasar listrik grosir (Locational Marginal Price / LMP) secara kausal tanpa kebocoran data masa depan (*zero lookahead bias*):
+- **Horizon Forecast 24 Jam**: Membandingkan kurva harga prediksi model AI (biru terang) dengan harga acuan Day-Ahead ISO (kuning), dilengkapi pita ketidakpastian parametrik 80% (*80% Uncertainty Band*).
+- **Evaluasi Out-of-Sample Walk-Forward**: Pengujian kronologis pada 15% data terpisah menghasilkan metrik evaluasi nyata (**MAE $7.45/MWh**, RMSE $19.25, MAPE 10.8%).
+- **Tolok Ukur Baseline Jujur**: Menunjukkan peningkatan akurasi **+63.7%** dibandingkan model acuan naif (*Lag-1 Persistence MAE: $16.61*, *Lag-24 Seasonal Naive MAE: $20.58*).
+- **Bobot Fitur Prediktif Utama (*Feature Importances*)**: Menyorot pengaruh terbesar pohon keputusan gradien (`price_day_ahead`, `price_lag_168`, komponen siklikal waktu `hour_sin`, dll.).
+- **Dukungan Multi-Dataset**: Dilengkapi fitur *Import CSV Dataset* dengan validasi skema otomatis dan pelatihan ulang model XGBoost secara instan (*Train XGBoost Model*).
+
+---
+
+### B. Backtesting Deterministik & Analisis Risiko (Backtesting & Risk)
+![Deterministic Backtesting & Risk Analytics](docs/images/backtesting_risk_analytics.png)
+
+Panel simulasi performa historis dengan memperhitungkan hukum fisika elektrokimia baterai secara realistis:
+- **Kurva Ekuitas Kumulatif (Cumulative Net PnL Curve)**: Visualisasi pergerakan modal bersih terhadap waktu yang telah dipotong rugi efisiensi baterai, biaya keausan siklus sel, dan biaya jaringan.
+- **Akuntansi Strategi & Baseline yang Adil**:
+  - *Baseline Idle (No Trade)*: $0.00 (tanpa aktivitas).
+  - *Baseline Dynamic Price-Threshold (25th/75th Percentile)*: Menguji heuristik arbitrase dinamis berbasis persentil berjalan.
+  - *XGBoost Day-Ahead Forecast Heuristic*: Mengoptimalkan waktu dispatch berdasarkan sinyal peramalan AI, menghasilkan laba operasi bersih positif (**+$1.325,44**).
+- **Metrik Kinerja Komprehensif**: Menampilkan Net Profit, Annualized Sharpe Ratio, Max Drawdown, Win Rate, Equivalent Full Cycles (EFC), dan pelacakan pelanggaran batas keras (*Zero Constraint Violations*).
+- **Analisis Sensitivitas Parameter Interaktif**: Menilai ketahanan margin profit terhadap variasi parameter fisik (misalnya biaya penggantian sel $\pm 20\%$, efisiensi bolak-balik, atau kapasitas inverter).
+
+---
+
+## 3. Arsitektur Sistem
 
 ```mermaid
 flowchart TD
@@ -63,7 +95,7 @@ flowchart TD
         RiskManager["Manajemen Risiko Pre-Trade & Tombol Darurat"]
         PaperAdapter["Adapter Paper Trading (Latensi & Slippage Realistis)"]
         LiveAdapter["Adapter Pasar Riil (Terkunci Aman)"]
-        DB[(Penyimpanan SQLite WAL & Jejak Audit)]
+        DB[("Penyimpanan SQLite WAL & Jejak Audit")]
     end
 
     subgraph Python ["Python ML Microservice (Port 8231)"]
@@ -74,7 +106,8 @@ flowchart TD
 
     subgraph BenchmarkData ["Lapisan Data & Tata Kelola"]
         CAISOData["Benchmark CAISO SP-15 2024 (8.784 Jam Diverifikasi)"]
-        CSVImporter["Pengimpor CSV Kustom (Validasi Skema)"]
+        OPSDData["Dataset Pasar Eropa OPSD (Jerman 2019/2020)"]
+        CSVImporter["Pengimpor CSV Kustom (Validasi Skema & Auto-Train)"]
     end
 
     UI -->|HTTP Proxy /api| AxumServer
@@ -87,6 +120,7 @@ flowchart TD
     FastAPIApp --> XGBoostModel
     FastAPIApp --> PPOModel
     CAISOData --> AxumServer
+    OPSDData --> AxumServer
     CSVImporter --> AxumServer
 ```
 
@@ -99,7 +133,7 @@ flowchart TD
 
 ---
 
-## 3. Pemodelan Fisika BESS & Ketelitian Matematis
+## 4. Pemodelan Fisika BESS & Ketelitian Matematis
 
 ### A. Efisiensi Round-Trip Non-Linear & Konservasi Energi
 Digital twin memodelkan efisiensi konversi asimetris saat pengisian (*charging*) dan pelepasan (*discharging*):
@@ -141,8 +175,8 @@ Konservasi energi ditegakkan secara mutlak: kerugian termal inverter dan sel dip
 ---
 
 ### B. Amplop Operasi & Batas Fisik Keras (Hard Constraints)
-- **Rentang State of Charge (SoC)**: Terikat ketat pada batas aman 10% hingga 90% (`SoC_min` s.d. `SoC_max`) untuk mencegah degradasi kimiawi elektroda dan pembentukan dendrit litium.
-- **Peringkat Daya Inverter**: Daya aktif tidak boleh melampaui kapasitas nominal inverter `P_nom` (default 100 MW).
+- **Rentang State of Charge (SoC)**: Terikat ketat pada batas aman 5% hingga 95% (`SoC_min` s.d. `SoC_max`) untuk mencegah degradasi kimiawi elektroda dan pembentukan dendrit litium.
+- **Peringkat Daya Inverter**: Daya aktif tidak boleh melampaui kapasitas nominal inverter `P_nom` (default 50 MW).
 - **Batas Headroom Fisik Pengisian dan Pelepasan Daya**:
 
 $$
@@ -174,7 +208,25 @@ $$
 
 ---
 
-## 4. Kecerdasan Buatan & Machine Learning
+### D. Degradation Hurdle Rate & Ekonomi Arbitrase Nyata
+Sistem ini tidak menggunakan penyederhanaan yang keliru (seperti hanya menghitung margin selisih harga kotor $P_{\text{sell}} - P_{\text{buy}}$). Dalam operasi nyata, BESS memiliki ambang batas keekonomian yang ketat:
+
+$$
+\text{Hurdle Rate} \approx 2 \times C_{\text{deg}} + \Delta \text{Loss}_{\text{round-trip}} + 2 \times \text{Fee}_{\text{grid}}
+$$
+
+Untuk baterai utilitas standar 100 MWh / 50 MW (biaya sel $\$120.000/\text{MWh}$, umur nominal 5.000 siklus):
+1. **Biaya Keausan Siklus**: $\frac{\$120.000}{2 \times 5.000} = \$12,00/\text{MWh}$ per arah throughput. Satu siklus penuh membutuhkan $\$24,00/\text{MWh}$.
+2. **Rugi Konversi Bolak-Balik**: Efisiensi $0,94 \times 0,94 \approx 88,36\%$ menimbulkan kehilangan daya $\approx 11,64\%$.
+3. **Ambang Batas Impas (*Break-Even Spread*)**: Baterai membutuhkan selisih harga pasar minimal **$\approx \$28 - \$30 / \text{MWh}$** agar setiap siklus menghasilkan laba bersih positif.
+
+> [!IMPORTANT]
+> - **Pada Pasar CAISO SP-15 2024**: Fluktuasi harian akibat *duck curve* sangat tinggi (spread > $100/MWh), sehingga strategi arbitrase menghasilkan laba bersih signifikan.
+> - **Pada Pasar dengan Selisih Tipis (seperti Jerman 2020)**: Rata-rata spread harga harian hanya €13–€15/MWh (di bawah batas *hurdle rate* €28/MWh). Akibatnya, strategi heuristik sederhana yang memutar siklus tanpa filter spread akan mencatat nilai minus karena biaya degradasi sel baterai lebih besar daripada keuntungan selisih energi. Di sinilah peran krusial algoritma cerdas berbasis AI/PPO untuk menahan baterai dalam kondisi **IDLE** guna menjaga kesehatan sel saat spread pasar tidak menguntungkan.
+
+---
+
+## 5. Kecerdasan Buatan & Machine Learning
 
 ### A. Peramal Harga XGBoost (XGBoost Price Forecaster)
 - **Feature Engineering Kausal Tanpa Kebocoran Informasi (Zero Lookahead)**: Hanya menggunakan lag harga historis ($t-1, t-2, t-24, t-48, t-168$), statistik bergulir (24 jam, 168 jam) dengan pergeseran waktu 1 langkah (`.shift(1)`), *cyclical sine/cosine calendar encoding* (jam, hari, bulan), dan harga pasar Day-Ahead yang telah dirilis hari sebelumnya.
@@ -214,7 +266,7 @@ $$
 
 ---
 
-## 5. Terminal Trading Frontend
+## 6. Terminal Trading Frontend
 
 Antarmuka dibangun dengan **React 19**, **TypeScript**, **Tailwind CSS v4**, **Recharts**, dan **Lucide Icons**, mencakup 8 panel fungsional:
 
@@ -229,18 +281,27 @@ Antarmuka dibangun dengan **React 19**, **TypeScript**, **Tailwind CSS v4**, **R
 
 ---
 
-## 6. Tata Kelola Data & Benchmark CAISO 2024
+## 7. Tata Kelola Data, Multi-Pasar & Alat Konversi Benchmark
+
+Platform ini dirancang fleksibel untuk mendukung berbagai pasar listrik internasional:
 
 - **Dataset Benchmark CAISO SP-15 2024**: Berisi 8.784 interval jam penuh (1 Januari s.d. 31 Desember 2024 tahun kabisat) yang mencakup Locational Marginal Pricing (LMP) riil, harga Day-Ahead, beban sistem (MW), pembangkitan surya (MW), pembangkitan angin (MW), dan temperatur (°C).
-- **Dinamika Pasar yang Terkandung**:
   - Harga negatif hingga mencapai **-$54.38/MWh** saat pemangkasan pembangkit surya siang hari (*curtailment*).
   - Lonjakan harga petang hari (*evening ramp*) hingga mencapai **$397.66/MWh**.
   - Harga rata-rata pasar: **$39.88/MWh** dengan deviasi standar **$28.94/MWh**.
+- **Dukungan Dataset Multi-Index Eropa (OPSD)**: Tersedia skrip konversi otomatis untuk mengekstrak dataset bersih dari Open Power System Data (Jerman, Prancis, Inggris, dll.):
+  ```powershell
+  python scripts/convert_opsd_to_benchmark.py --input "data/raw/time_series_60min_singleindex.csv" --country DE --year 2020
+  ```
+- **Pengimpor CSV Fleksibel di Terminal UI**:
+  - Mendukung unggah langsung berkas CSV (*drag-and-drop*) maupun penempelan teks CSV mentah.
+  - Pemetaan kolom pintar: otomatis mengenali variasi nama kolom harga internasional (`price_actual`, `price_day_ahead`, `cet_cest_timestamp`, `load_mw`, dll.).
+  - **Sinkronisasi Pelatihan Otomatis**: Saat data baru diimpor, sistem secara otomatis melatih ulang model XGBoost dan menyinkronkan metrik evaluasi walk-forward secara instan.
 - **Kamus Data (Data Dictionary)**: Spesifikasi satuan, batasan rentang valid, penanganan nilai hilang, dan rekam jejak sumber didokumentasikan di [`data/datasets/data_dictionary.md`](data/datasets/data_dictionary.md).
 
 ---
 
-## 7. Spesifikasi API
+## 8. Spesifikasi API
 
 Rust Control Plane menyediakan antarmuka REST API pada port `8230`:
 
@@ -249,10 +310,12 @@ Rust Control Plane menyediakan antarmuka REST API pada port `8230`:
 | `/api/health` | `GET` | Pemeriksaan kesehatan dan status ketersediaan subsistem |
 | `/api/market/latest` | `GET` | Data harga pasar, beban, surya, dan angin terbaru |
 | `/api/market/history?limit=100` | `GET` | Rangkaian data interval historis untuk visualisasi grafik |
+| `/api/market/import` | `POST` | Mengimpor dataset pasar baru (CSV) dan menyinkronkan pipeline |
 | `/api/bess/state` | `GET` | Status digital twin baterai saat ini (SoC, SOH, throughput, kapasitas) |
 | `/api/bess/config` | `POST` | Memperbarui parameter fisik dan finansial BESS |
 | `/api/bess/step` | `POST` | Menjalankan satu langkah simulasi daya diskrit |
 | `/api/forecast/predict` | `POST` | Menjalankan inferensi XGBoost lengkap dengan pita keyakinan |
+| `/api/forecast/train` | `POST` | Memicu pelatihan ulang model XGBoost pada dataset aktif |
 | `/api/strategy/backtest` | `POST` | Menjalankan backtest deterministik membandingkan strategi vs baseline adil |
 | `/api/strategy/sensitivity` | `GET` | Menjalankan analisis sensitivitas multi-parameter |
 | `/api/dispatch/plan` | `GET` | Membuat jadwal rekomendasi dispatch 24 jam ke depan |
@@ -263,7 +326,7 @@ Rust Control Plane menyediakan antarmuka REST API pada port `8230`:
 
 ---
 
-## 8. Panduan Instalasi & Menjalankan Aplikasi
+## 9. Panduan Instalasi & Menjalankan Aplikasi
 
 ### Prasyarat Sistem
 - **Rust & Cargo** (versi 1.75 atau lebih baru)
@@ -299,7 +362,7 @@ chmod +x scripts/*.sh
 
 ---
 
-## 9. Verifikasi Pengujian & Quality Gates
+## 10. Verifikasi Pengujian & Quality Gates
 
 Seluruh suite pengujian otomatis dapat dijalankan secara lokal:
 
@@ -311,7 +374,7 @@ cargo test
 ```
 *Pengujian yang Berhasil:*
 - `test_round_trip_efficiency_and_losses`: Memverifikasi konversi efisiensi bolak-balik non-linear 88.36% dan pemotongan rugi termal.
-- `test_hard_soc_bounds_enforcement`: Memastikan SoC baterai tidak pernah melanggar batas aman 10% s.d. 90%.
+- `test_hard_soc_bounds_enforcement`: Memastikan SoC baterai tidak pernah melanggar batas aman 5% s.d. 95%.
 - `test_inverter_power_rating_limit`: Memverifikasi penolakan oleh Risk Manager saat permintaan MW melebihi batas inverter.
 - `test_kill_switch_blocks_orders`: Memverifikasi penghentian order secara atomik seketika saat tombol darurat aktif.
 - `test_backtest_determinism_and_baselines`: Memastikan pemutaran ulang backtest 100% deterministik dan perhitungan baseline adil.
@@ -335,7 +398,7 @@ npm run build
 
 ---
 
-## 10. Manajemen Risiko & Keamanan Operasional
+## 11. Manajemen Risiko & Keamanan Operasional
 
 1. **Pre-Trade Risk Manager**: Berada di jalur eksekusi sebelum order diteruskan, memvalidasi kapasitas batas daya inverter, margin keamanan SoC, dan laju kenaikan daya (*ramp rate*).
 2. **Emergency Kill-Switch**: Tombol henti darurat atomik di memori Rust Control Plane yang langsung memblokir seluruh pengiriman order dispatch baru jika diaktifkan.
