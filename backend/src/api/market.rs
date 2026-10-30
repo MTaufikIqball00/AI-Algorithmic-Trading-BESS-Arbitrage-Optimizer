@@ -122,6 +122,10 @@ pub async fn import_market_csv(
         *ds = new_points;
     }
 
+    // Persist active dataset to disk so ML service (Python) trains and predicts on the current imported data
+    let _ = tokio::fs::create_dir_all("data/datasets").await;
+    let _ = tokio::fs::write("data/datasets/active_market_dataset.csv", &payload.csv_content).await;
+
     Json(json!({
         "status": "success",
         "imported_records": count,

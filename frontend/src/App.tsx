@@ -146,6 +146,11 @@ export function App() {
   const handleImportCsv = async (csvContent: string) => {
     await api.importMarketCsv(csvContent);
     await fetchInitialData();
+    try {
+      await handleTrainModel();
+    } catch (e) {
+      console.warn("Notice on auto-train after import:", e);
+    }
   };
 
   const handleUpdateConfig = async (newCfg: BatteryConfig) => {

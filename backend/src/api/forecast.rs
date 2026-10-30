@@ -24,7 +24,8 @@ pub async fn predict_forecast(
         .http_client
         .post(&ml_url)
         .json(&json!({
-            "horizon": horizon
+            "horizon": horizon,
+            "dataset_path": "data/datasets/active_market_dataset.csv"
         }))
         .send()
         .await;
@@ -69,7 +70,9 @@ pub async fn train_forecast(State(state): State<AppState>) -> impl IntoResponse 
     let res = state
         .http_client
         .post(&ml_url)
-        .json(&json!({}))
+        .json(&json!({
+            "dataset_path": "data/datasets/active_market_dataset.csv"
+        }))
         .send()
         .await;
 

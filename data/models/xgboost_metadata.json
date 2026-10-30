@@ -1,7 +1,7 @@
 {
   "model_type": "XGBoost Regressor",
   "version": "1.0.0",
-  "trained_at": "2026-10-30T05:42:18.397263Z",
+  "trained_at": "2026-10-30T07:25:36.812407Z",
   "samples_train": 6031,
   "samples_val": 1292,
   "samples_test": 1293,

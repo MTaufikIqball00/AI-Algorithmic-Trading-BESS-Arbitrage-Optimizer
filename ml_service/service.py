@@ -42,8 +42,31 @@ app.add_middleware(
 )
 
 def resolve_dataset_path(path: Optional[str] = None) -> str:
+    # 1. If explicit path exists, check and return it
+    if path:
+        path_candidates = [
+            path,
+            os.path.join("..", path),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", path),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), path),
+        ]
+        for c in path_candidates:
+            if os.path.exists(c):
+                return os.path.abspath(c)
+
+    # 2. Check active_market_dataset.csv
+    active_candidates = [
+        "data/datasets/active_market_dataset.csv",
+        "../data/datasets/active_market_dataset.csv",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "datasets", "active_market_dataset.csv"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "datasets", "active_market_dataset.csv"),
+    ]
+    for c in active_candidates:
+        if os.path.exists(c):
+            return os.path.abspath(c)
+
+    # 3. Fallback to default caiso benchmark
     candidates = [
-        path,
         "data/datasets/caiso_hourly_benchmark_2024.csv",
         "../data/datasets/caiso_hourly_benchmark_2024.csv",
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "datasets", "caiso_hourly_benchmark_2024.csv"),

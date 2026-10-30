@@ -210,6 +210,14 @@ export const MarketTab: React.FC<MarketTabProps> = ({
     systemLoad: p.system_load_mw,
   }));
 
+  const activeMarketId = marketPoints[0]?.market_id || "BENCHMARK";
+  const currencySymbol =
+    activeMarketId.includes("DE") ||
+    activeMarketId.includes("EPEX") ||
+    activeMarketId.includes("EUR")
+      ? "€"
+      : "$";
+
   const forecastData =
     forecast?.predictions.map((p) => ({
       time: p.timestamp.substring(11, 16),
@@ -379,20 +387,25 @@ export const MarketTab: React.FC<MarketTabProps> = ({
               <Cpu className="w-4 h-4 text-cyan-400" />
               <span>Walk-Forward Test Evaluation</span>
             </h3>
-            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-400">
-              OUT-OF-SAMPLE
-            </span>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-400">
+                {activeMarketId}
+              </span>
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-400">
+                OUT-OF-SAMPLE
+              </span>
+            </div>
           </div>
 
           <div className="space-y-3 text-xs">
             <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
               <div className="text-slate-400 mb-1">Mean Absolute Error (MAE)</div>
               <div className="text-2xl font-bold font-mono text-cyan-400">
-                ${metrics?.test_metrics.mae.toFixed(2) ?? "3.84"}
+                {currencySymbol}{metrics?.test_metrics.mae.toFixed(2) ?? "3.84"}
                 <span className="text-xs text-slate-400 font-normal ml-1">/MWh</span>
               </div>
               <div className="text-[11px] text-slate-400 mt-1">
-                RMSE: ${metrics?.test_metrics.rmse.toFixed(2) ?? "5.42"} • MAPE: {metrics?.test_metrics.mape_percent.toFixed(1) ?? "7.8"}%
+                RMSE: {currencySymbol}{metrics?.test_metrics.rmse.toFixed(2) ?? "5.42"} • MAPE: {metrics?.test_metrics.mape_percent.toFixed(1) ?? "7.8"}%
               </div>
             </div>
 
@@ -401,13 +414,13 @@ export const MarketTab: React.FC<MarketTabProps> = ({
               <div className="flex justify-between">
                 <span className="text-slate-400">Lag-1 Persistence MAE:</span>
                 <span className="font-mono text-slate-200">
-                  ${metrics?.baseline_comparisons.persistence_lag1.mae.toFixed(2) ?? "6.20"}
+                  {currencySymbol}{metrics?.baseline_comparisons.persistence_lag1.mae.toFixed(2) ?? "6.20"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Lag-24 Seasonal Naive MAE:</span>
                 <span className="font-mono text-slate-200">
-                  ${metrics?.baseline_comparisons.seasonal_naive_lag24.mae.toFixed(2) ?? "8.45"}
+                  {currencySymbol}{metrics?.baseline_comparisons.seasonal_naive_lag24.mae.toFixed(2) ?? "8.45"}
                 </span>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-800 text-emerald-400 font-semibold">
@@ -420,7 +433,9 @@ export const MarketTab: React.FC<MarketTabProps> = ({
 
             <div className="text-[11px] text-slate-400 flex items-center space-x-1.5 pt-1">
               <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span>Evaluated chronologically on 15% out-of-sample test window.</span>
+              <span>
+                Evaluated chronologically on 15% out-of-sample window ({metrics?.samples_test ? `${metrics.samples_test.toLocaleString()} jam` : "1,317 jam"}).
+              </span>
             </div>
           </div>
         </div>
