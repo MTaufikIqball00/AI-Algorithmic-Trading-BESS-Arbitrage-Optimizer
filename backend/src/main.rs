@@ -55,7 +55,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = app_router(state).layer(cors);
+    let app = app_router(state)
+        .layer(cors)
+        .layer(axum::extract::DefaultBodyLimit::max(100 * 1024 * 1024));
 
     // 7. Bind Server
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;

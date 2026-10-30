@@ -82,17 +82,25 @@ pub async fn import_market_csv(
     let mut reader = csv::Reader::from_reader(payload.csv_content.as_bytes());
     let mut new_points = Vec::new();
 
-    for result in reader.deserialize() {
+    for result in reader.deserialize::<MarketPoint>() {
         match result {
-            Ok(record) => {
-                let point: MarketPoint = record;
+            Ok(mut point) => {
+                let point: MarketPoint = {
+                    if let Some(ref mid) = payload.market_id {
+                        point.market_id = mid.clone();
+                    }
+                    if point.price_day_ahead == 0.0 && point.price_actual != 0.0 {
+                        point.price_day_ahead = point.price_actual;
+                    }
+                    point
+                };
                 new_points.push(point);
             }
             Err(e) => {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(json!({
-                        "error": format!("CSV Schema parse error: {}. Required headers: timestamp, market_id, price_actual, price_day_ahead, system_load_mw, solar_gen_mw, wind_gen_mw, temperature_c, data_quality", e)
+                        "error": format!("CSV Schema parse error: {}. Minimal required headers: timestamp, price_actual (optional: market_id, price_day_ahead, system_load_mw, solar_gen_mw, wind_gen_mw, temperature_c, data_quality)", e)
                     })),
                 )
                     .into_response();

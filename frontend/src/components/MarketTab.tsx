@@ -14,6 +14,7 @@ import {
   Trash2,
   FolderOpen,
   FileCheck2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -68,13 +69,56 @@ export const MarketTab: React.FC<MarketTabProps> = ({
   const [csvText, setCsvText] = useState("");
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
-  // File Upload States
+  // File Upload & Validation States
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [selectedFileSize, setSelectedFileSize] = useState<string | null>(null);
   const [rowCount, setRowCount] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"file" | "paste">("file");
   const [isDragging, setIsDragging] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [fileWarning, setFileWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const checkCsvValidation = (snippet: string, fileSizeBytes?: number) => {
+    let warning: string | null = null;
+    let error: string | null = null;
+
+    if (fileSizeBytes && fileSizeBytes > 25 * 1024 * 1024) {
+      warning = `Ukuran berkas sangat besar (${(fileSizeBytes / 1024 / 1024).toFixed(1)} MB). Unggahan berkas berukuran besar via peramban dapat membebani memori dan jaringan.`;
+    }
+
+    const trimmed = snippet.trim();
+    if (!trimmed) {
+      return { isValid: false, warning, error: "Konten berkas CSV kosong." };
+    }
+
+    const firstLine = trimmed.split("\n")[0].toLowerCase();
+
+    // Check for OPSD / ENTSO-E multiindex format
+    if (
+      firstLine.includes("region,cet_cest_timestamp") ||
+      trimmed.includes("actual_entsoe_transparency") ||
+      firstLine.startsWith("region,")
+    ) {
+      error =
+        "Terdeteksi dataset Open Power System Data (OPSD) Multi-Index. Berkas ini memiliki 7 tingkat baris header dan puluhan negara. Gunakan skrip otomatis: python scripts/convert_opsd_to_benchmark.py --input \"<file>\" --country DE --year 2020 untuk mengekstrak dataset bersih (~500 KB) yang siap diimpor.";
+      return { isValid: false, warning, error };
+    }
+
+    const hasTime =
+      firstLine.includes("timestamp") ||
+      firstLine.includes("time") ||
+      firstLine.includes("date");
+    const hasPrice = firstLine.includes("price");
+
+    if (!hasTime || !hasPrice) {
+      error =
+        "Header kolom tidak sesuai. Minimal kolom yang wajib ada: 'timestamp' dan 'price_actual' (atau 'price').";
+      return { isValid: false, warning, error };
+    }
+
+    return { isValid: true, warning, error: null };
+  };
 
   const processFile = (file: File) => {
     if (!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv") {
@@ -83,19 +127,38 @@ export const MarketTab: React.FC<MarketTabProps> = ({
     }
     setSelectedFileName(file.name);
     setSelectedFileSize((file.size / 1024).toFixed(1) + " KB");
+    setImportStatus(null);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = (e.target?.result as string) || "";
-      setCsvText(text);
-      const lines = text.trim().split("\n");
-      setRowCount(Math.max(0, lines.length - 1));
-      setImportStatus(null);
+    // Fast header inspection slice (first 8KB) to avoid memory crashes on massive files
+    const sliceBlob = file.slice(0, 8192);
+    const sliceReader = new FileReader();
+    sliceReader.onload = (e) => {
+      const headerSnippet = (e.target?.result as string) || "";
+      const val = checkCsvValidation(headerSnippet, file.size);
+      setValidationError(val.error);
+      setFileWarning(val.warning);
+
+      if (!val.isValid) {
+        // If invalid or OPSD multiindex, don't read entire 100+ MB file into memory
+        setCsvText(headerSnippet.slice(0, 1000));
+        setRowCount(Math.max(0, Math.round(file.size / 2500)));
+        return;
+      }
+
+      // Valid schema: read full file
+      const fullReader = new FileReader();
+      fullReader.onload = (fe) => {
+        const text = (fe.target?.result as string) || "";
+        setCsvText(text);
+        const lines = text.trim().split("\n");
+        setRowCount(Math.max(0, lines.length - 1));
+      };
+      fullReader.onerror = () => {
+        setImportStatus("Error: Gagal membaca file dari sistem lokal.");
+      };
+      fullReader.readAsText(file);
     };
-    reader.onerror = () => {
-      setImportStatus("Error: Gagal membaca file dari sistem lokal.");
-    };
-    reader.readAsText(file);
+    sliceReader.readAsText(sliceBlob);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -121,6 +184,8 @@ export const MarketTab: React.FC<MarketTabProps> = ({
     setSelectedFileSize(null);
     setRowCount(null);
     setCsvText("");
+    setValidationError(null);
+    setFileWarning(null);
     setImportStatus(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -130,6 +195,8 @@ export const MarketTab: React.FC<MarketTabProps> = ({
     setSelectedFileName("caiso_sp15_sample_demo.csv");
     setSelectedFileSize("1.4 KB");
     setRowCount(14);
+    setValidationError(null);
+    setFileWarning(null);
     setActiveTab("file");
     setImportStatus(null);
   };
@@ -173,15 +240,29 @@ export const MarketTab: React.FC<MarketTabProps> = ({
 
   const handleImport = async () => {
     if (!csvText.trim()) return;
+
+    const val = checkCsvValidation(csvText);
+    if (!val.isValid) {
+      setImportStatus(`Format Error: ${val.error}`);
+      return;
+    }
+
     try {
       await onImportCsv(csvText);
       setImportStatus("Dataset successfully imported and verified!");
       setTimeout(() => {
         setImportModalOpen(false);
         setImportStatus(null);
+        handleClearFile();
       }, 1500);
     } catch (e: any) {
-      setImportStatus(`Import Error: ${e.message}`);
+      if (e.message && e.message.includes("Failed to fetch")) {
+        setImportStatus(
+          "Koneksi terputus (Failed to fetch). Pastikan server backend berjalan di port 8230 dan ukuran berkas wajar untuk peramban."
+        );
+      } else {
+        setImportStatus(`Import Error: ${e.message}`);
+      }
     }
   };
 
@@ -527,9 +608,13 @@ export const MarketTab: React.FC<MarketTabProps> = ({
                 <textarea
                   value={csvText}
                   onChange={(e) => {
-                    setCsvText(e.target.value);
-                    const lines = e.target.value.trim().split("\n");
+                    const val = e.target.value;
+                    setCsvText(val);
+                    const lines = val.trim().split("\n");
                     setRowCount(lines.length > 1 ? lines.length - 1 : 0);
+                    const chk = checkCsvValidation(val);
+                    setValidationError(chk.error);
+                    setFileWarning(chk.warning);
                   }}
                   placeholder="Tempel baris CSV di sini (termasuk baris header)..."
                   rows={7}
@@ -538,12 +623,49 @@ export const MarketTab: React.FC<MarketTabProps> = ({
               </div>
             )}
 
+            {/* Validation Error Banner */}
+            {validationError && (
+              <div className="text-xs p-3 rounded-xl border bg-amber-950/40 text-amber-200 border-amber-700/60 space-y-1.5">
+                <div className="flex items-center space-x-2 font-bold text-amber-300">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>Struktur Berkas Memerlukan Penyesuaian</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-amber-200/90 font-medium">
+                  {validationError}
+                </p>
+              </div>
+            )}
+
+            {/* File Warning Banner */}
+            {fileWarning && !validationError && (
+              <div className="text-xs p-2.5 rounded-xl border bg-cyan-950/40 text-cyan-200 border-cyan-800/60 flex items-center space-x-2">
+                <Info className="w-4 h-4 shrink-0 text-cyan-400" />
+                <span className="text-[11px]">{fileWarning}</span>
+              </div>
+            )}
+
             {/* Schema Requirement Helper */}
-            <div className="text-[11px] text-slate-400 space-y-1 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
-              <span className="font-semibold text-slate-300">Format Kolom Wajib:</span>
-              <code className="block text-cyan-300 font-mono text-[10px] overflow-x-auto whitespace-nowrap">
-                timestamp,market_id,price_actual,price_day_ahead,system_load_mw,solar_gen_mw,wind_gen_mw,temperature_c,data_quality
-              </code>
+            <div className="text-[11px] text-slate-300 space-y-2 bg-slate-950/90 p-3 rounded-xl border border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-200">Kebutuhan Kolom Dataset:</span>
+                <span className="text-[10px] text-emerald-400 font-medium bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/40">
+                  ✓ Kolom Opsional Didukung Otomatis
+                </span>
+              </div>
+              <div className="space-y-1">
+                <div className="text-[10px] text-slate-400">
+                  <span className="text-cyan-400 font-bold">Wajib: </span>
+                  <code className="text-cyan-300 font-mono">timestamp, price_actual</code>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  <span className="text-slate-400 font-semibold">Opsional (Fitur AI Lengkap): </span>
+                  <code className="text-slate-300 font-mono">market_id, price_day_ahead, system_load_mw, solar_gen_mw, wind_gen_mw, temperature_c, data_quality</code>
+                </div>
+              </div>
+              <div className="pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>💡 Punya berkas OPSD/ENTSO-E? Konversi instan:</span>
+                <code className="text-cyan-300 font-mono bg-slate-900 px-1.5 py-0.5 rounded">python scripts/convert_opsd_to_benchmark.py</code>
+              </div>
             </div>
 
             {importStatus && (
@@ -572,8 +694,8 @@ export const MarketTab: React.FC<MarketTabProps> = ({
               </button>
               <button
                 onClick={handleImport}
-                disabled={!csvText.trim()}
-                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-900 font-bold rounded-lg text-xs transition flex items-center space-x-1.5"
+                disabled={!csvText.trim() || !!validationError}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-900 font-bold rounded-lg text-xs transition flex items-center space-x-1.5"
               >
                 <UploadCloud className="w-3.5 h-3.5" />
                 <span>Validasi & Impor Dataset</span>
