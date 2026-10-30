@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   TrendingUp,
   Cpu,
@@ -9,6 +9,11 @@ import {
   Layers,
   Sparkles,
   Info,
+  FileSpreadsheet,
+  FileText,
+  Trash2,
+  FolderOpen,
+  FileCheck2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -25,6 +30,22 @@ import {
   Bar,
 } from "recharts";
 import { MarketPoint, ForecastResponse, ForecastMetrics } from "../types";
+
+const DEMO_SAMPLE_CSV = `timestamp,market_id,price_actual,price_day_ahead,system_load_mw,solar_gen_mw,wind_gen_mw,temperature_c,data_quality
+2024-06-01T08:00:00Z,CAISO_SP15,22.45,28.50,21500.0,3200.0,1500.0,18.5,VALID
+2024-06-01T09:00:00Z,CAISO_SP15,10.20,15.00,22400.0,6500.0,1200.0,21.0,VALID
+2024-06-01T10:00:00Z,CAISO_SP15,-5.80,2.10,23100.0,9800.0,900.0,24.2,VALID
+2024-06-01T11:00:00Z,CAISO_SP15,-18.40,-10.00,24200.0,12400.0,800.0,26.5,VALID
+2024-06-01T12:00:00Z,CAISO_SP15,-22.10,-15.50,25000.0,13100.0,750.0,28.0,VALID
+2024-06-01T13:00:00Z,CAISO_SP15,-12.30,-5.00,25600.0,12800.0,850.0,28.5,VALID
+2024-06-01T14:00:00Z,CAISO_SP15,5.60,8.20,26200.0,10500.0,1100.0,27.8,VALID
+2024-06-01T15:00:00Z,CAISO_SP15,24.80,30.00,27100.0,7200.0,1400.0,26.2,VALID
+2024-06-01T16:00:00Z,CAISO_SP15,65.40,60.10,28900.0,3800.0,1800.0,24.5,VALID
+2024-06-01T17:00:00Z,CAISO_SP15,145.20,130.00,31200.0,1200.0,2200.0,22.8,VALID
+2024-06-01T18:00:00Z,CAISO_SP15,285.50,250.00,33500.0,150.0,2600.0,21.0,VALID
+2024-06-01T19:00:00Z,CAISO_SP15,310.80,290.00,33100.0,0.0,2900.0,20.2,VALID
+2024-06-01T20:00:00Z,CAISO_SP15,195.40,180.00,31500.0,0.0,3100.0,19.5,VALID
+2024-06-01T21:00:00Z,CAISO_SP15,95.00,90.00,29000.0,0.0,3400.0,18.8,VALID`;
 
 interface MarketTabProps {
   marketPoints: MarketPoint[];
@@ -46,6 +67,72 @@ export const MarketTab: React.FC<MarketTabProps> = ({
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [csvText, setCsvText] = useState("");
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  // File Upload States
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [selectedFileSize, setSelectedFileSize] = useState<string | null>(null);
+  const [rowCount, setRowCount] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"file" | "paste">("file");
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const processFile = (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv") {
+      setImportStatus("Error: Hanya file berekstensi .csv yang didukung.");
+      return;
+    }
+    setSelectedFileName(file.name);
+    setSelectedFileSize((file.size / 1024).toFixed(1) + " KB");
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) || "";
+      setCsvText(text);
+      const lines = text.trim().split("\n");
+      setRowCount(Math.max(0, lines.length - 1));
+      setImportStatus(null);
+    };
+    reader.onerror = () => {
+      setImportStatus("Error: Gagal membaca file dari sistem lokal.");
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleClearFile = () => {
+    setSelectedFileName(null);
+    setSelectedFileSize(null);
+    setRowCount(null);
+    setCsvText("");
+    setImportStatus(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleLoadDemo = () => {
+    setCsvText(DEMO_SAMPLE_CSV);
+    setSelectedFileName("caiso_sp15_sample_demo.csv");
+    setSelectedFileSize("1.4 KB");
+    setRowCount(14);
+    setActiveTab("file");
+    setImportStatus(null);
+  };
 
   // Prepare chart data for historical + forecast
   const historicalSlice = marketPoints.slice(-48).map((p) => ({
@@ -304,7 +391,7 @@ export const MarketTab: React.FC<MarketTabProps> = ({
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <h3 className="text-base font-bold text-slate-100 flex items-center space-x-2">
                 <UploadCloud className="w-5 h-5 text-cyan-400" />
-                <span>Import Market CSV Dataset</span>
+                <span>Impor Dataset Pasar (CSV)</span>
               </h3>
               <button
                 onClick={() => setImportModalOpen(false)}
@@ -314,41 +401,182 @@ export const MarketTab: React.FC<MarketTabProps> = ({
               </button>
             </div>
 
-            <div className="text-xs text-slate-400 space-y-1">
-              <p>
-                Paste CSV text with documented schema header:
-              </p>
-              <code className="block p-2 bg-slate-950 rounded text-cyan-300 font-mono text-[11px] overflow-x-auto">
+            {/* Mode Selector Tabs */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setActiveTab("file")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+                    activeTab === "file"
+                      ? "bg-cyan-600 text-slate-900 font-bold"
+                      : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Unggah File .CSV</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("paste")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+                    activeTab === "paste"
+                      ? "bg-cyan-600 text-slate-900 font-bold"
+                      : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Tempel Teks Raw</span>
+                </button>
+              </div>
+
+              <button
+                onClick={handleLoadDemo}
+                className="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-medium"
+              >
+                Muat Contoh Demo (24 Jam)
+              </button>
+            </div>
+
+            {/* Tab 1: File Upload / Drag and Drop */}
+            {activeTab === "file" && (
+              <div className="space-y-3">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".csv"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      processFile(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
+
+                {!selectedFileName ? (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center space-y-3 ${
+                      isDragging
+                        ? "border-cyan-400 bg-cyan-950/30 scale-[1.01]"
+                        : "border-slate-700 bg-slate-950/60 hover:border-cyan-500/70 hover:bg-slate-950"
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-cyan-400 shadow-inner">
+                      <FolderOpen className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-200">
+                        Klik untuk memilih file .csv dari perangkat Anda
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        atau seret dan lepas (*drag & drop*) file CSV ke area ini
+                      </p>
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold px-2 py-0.5 rounded bg-slate-800/80">
+                      Format: .CSV (Maks 50 MB)
+                    </span>
+                  </div>
+                ) : (
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-9 h-9 rounded-lg bg-emerald-950/60 border border-emerald-700/60 flex items-center justify-center text-emerald-400">
+                          <FileCheck2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-100 flex items-center space-x-2">
+                            <span>{selectedFileName}</span>
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              ({selectedFileSize})
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-emerald-400 font-medium">
+                            ✓ {rowCount?.toLocaleString()} baris data interval terdeteksi
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleClearFile}
+                        className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800/60 rounded-lg transition"
+                        title="Hapus file terpilih"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Preview box */}
+                    <div className="bg-slate-900 border border-slate-800 rounded p-2">
+                      <span className="text-[10px] font-bold text-slate-400 block mb-1">
+                        Pratinjau Baris Pertama:
+                      </span>
+                      <pre className="text-[10px] font-mono text-cyan-300/90 overflow-x-auto whitespace-pre">
+                        {csvText.split("\n").slice(0, 3).join("\n")}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 2: Raw Textarea Paste */}
+            {activeTab === "paste" && (
+              <div className="space-y-2">
+                <textarea
+                  value={csvText}
+                  onChange={(e) => {
+                    setCsvText(e.target.value);
+                    const lines = e.target.value.trim().split("\n");
+                    setRowCount(lines.length > 1 ? lines.length - 1 : 0);
+                  }}
+                  placeholder="Tempel baris CSV di sini (termasuk baris header)..."
+                  rows={7}
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            )}
+
+            {/* Schema Requirement Helper */}
+            <div className="text-[11px] text-slate-400 space-y-1 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+              <span className="font-semibold text-slate-300">Format Kolom Wajib:</span>
+              <code className="block text-cyan-300 font-mono text-[10px] overflow-x-auto whitespace-nowrap">
                 timestamp,market_id,price_actual,price_day_ahead,system_load_mw,solar_gen_mw,wind_gen_mw,temperature_c,data_quality
               </code>
             </div>
 
-            <textarea
-              value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
-              placeholder="Paste raw CSV content here..."
-              rows={8}
-              className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
-            />
-
             {importStatus && (
-              <div className="text-xs font-medium text-cyan-400 p-2 bg-cyan-950/40 rounded border border-cyan-800">
-                {importStatus}
+              <div
+                className={`text-xs font-medium p-2.5 rounded-lg border flex items-center space-x-2 ${
+                  importStatus.includes("Error")
+                    ? "bg-red-950/40 text-red-300 border-red-800"
+                    : "bg-emerald-950/40 text-emerald-300 border-emerald-800"
+                }`}
+              >
+                {importStatus.includes("Error") ? (
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                )}
+                <span>{importStatus}</span>
               </div>
             )}
 
-            <div className="flex justify-end space-x-2 pt-2">
+            <div className="flex justify-end space-x-2 pt-1 border-t border-slate-800/80">
               <button
                 onClick={() => setImportModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
               >
-                Cancel
+                Batal
               </button>
               <button
                 onClick={handleImport}
-                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-900 font-bold rounded-lg text-xs"
+                disabled={!csvText.trim()}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-900 font-bold rounded-lg text-xs transition flex items-center space-x-1.5"
               >
-                Validate & Import
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Validasi & Impor Dataset</span>
               </button>
             </div>
           </div>
