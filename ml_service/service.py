@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
 import torch
+import xgboost as xgb
 import sys
 import math
 import asyncio
