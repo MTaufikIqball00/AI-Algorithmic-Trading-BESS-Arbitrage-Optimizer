@@ -78,6 +78,54 @@ export const DataSourcesTab: React.FC<DataSourcesTabProps> = ({
                   {summary?.start_timestamp.substring(0, 10)} to {summary?.end_timestamp.substring(0, 10)}
                 </td>
               </tr>
+              <tr className="hover:bg-slate-800/30">
+                <td className="py-3 px-3 font-mono font-bold text-amber-400">
+                  GANDIKOTA_PV_P1
+                </td>
+                <td className="py-3 px-3">Gandikota Solar Utility Plant 1 (22 Inverters, 29.15 MW AC)</td>
+                <td className="py-3 px-3 font-mono">15 Min (IST +05:30)</td>
+                <td className="py-3 px-3 font-mono">kW / kWh / W/m²</td>
+                <td className="py-3 px-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 border border-amber-800 text-amber-300">
+                    REAL_SCADA_ARCHIVE
+                  </span>
+                </td>
+                <td className="py-3 px-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400">
+                    VERIFIED (100/100)
+                  </span>
+                </td>
+                <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
+                  68,774 rows (3,157 intv)
+                </td>
+                <td className="py-3 px-3 font-mono text-[11px] text-slate-400">
+                  2020-05-15 to 2020-06-17
+                </td>
+              </tr>
+              <tr className="hover:bg-slate-800/30">
+                <td className="py-3 px-3 font-mono font-bold text-amber-400">
+                  GANDIKOTA_PV_P2
+                </td>
+                <td className="py-3 px-3">Gandikota Solar Utility Plant 2 (22 Inverters, 25.98 MW AC)</td>
+                <td className="py-3 px-3 font-mono">15 Min (IST +05:30)</td>
+                <td className="py-3 px-3 font-mono">kW / kWh / W/m²</td>
+                <td className="py-3 px-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 border border-amber-800 text-amber-300">
+                    REAL_SCADA_ARCHIVE
+                  </span>
+                </td>
+                <td className="py-3 px-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400">
+                    VERIFIED (100/100)
+                  </span>
+                </td>
+                <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
+                  67,698 rows (3,259 intv)
+                </td>
+                <td className="py-3 px-3 font-mono text-[11px] text-slate-400">
+                  2020-05-15 to 2020-06-17
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

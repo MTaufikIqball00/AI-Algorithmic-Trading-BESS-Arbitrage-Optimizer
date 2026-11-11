@@ -8,8 +8,9 @@ echo "=== 1. Checking Rust Code Format & Linter ==="
 echo "=== 2. Running Rust Backend Tests ==="
 (cd backend && cargo test)
 
-echo "=== 3. Running Python ML & RL Tests ==="
-PYTHONPATH=ml_service pytest ml_service/tests
+echo "=== 3. Running Python ML, RL & Solar PV Tests ==="
+PYTHONPATH=".:ml_service" pytest ml_service/tests
+PYTHONPATH=".:ml_service" pytest solar_pv/tests
 
 echo "=== 4. Checking Frontend TypeScript & Production Build ==="
 (cd frontend && npm run build)

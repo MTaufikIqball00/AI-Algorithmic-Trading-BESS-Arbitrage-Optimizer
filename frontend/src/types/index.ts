@@ -202,3 +202,114 @@ export interface AuditEvent {
   severity: "INFO" | "WARN" | "CRITICAL";
   details: string;
 }
+
+export interface SolarPvForecastPoint {
+  asset_id: string;
+  timestamp: string;
+  forecast_horizon_minutes: number;
+  predicted_power_kw: number;
+  predicted_power_mw: number;
+  predicted_energy_kwh: number;
+  predicted_energy_mwh: number;
+  prediction_interval: {
+    lower_80: number;
+    upper_80: number;
+    lower_95: number;
+    upper_95: number;
+  };
+  model_version: string;
+  data_quality: string;
+  source_type: string;
+}
+
+export interface SolarCoupledDispatchDecision {
+  timestamp: string;
+  solar_available_mw: number;
+  solar_to_load_mw: number;
+  solar_to_bess_charge_mw: number;
+  solar_to_grid_export_mw: number;
+  solar_curtailed_mw: number;
+  bess_grid_charge_mw: number;
+  bess_discharge_mw: number;
+  net_grid_export_mw: number;
+  resulting_soc: number;
+  constraint_violated: boolean;
+  notes: string;
+}
+
+export interface SolarPvSummaryResponse {
+  status: string;
+  asset_id: string;
+  dataset_path: string;
+  rated_dc_kw: number;
+  rated_ac_kw: number;
+  total_intervals: number;
+  archive_summary: Record<string, any>;
+  xgboost_metadata: Record<string, any>;
+  lightgbm_metadata: Record<string, any>;
+  forecast: {
+    site_id: string;
+    generated_at: string;
+    horizon_hours: number;
+    total_forecast_energy_mwh: number;
+    peak_forecast_power_mw: number;
+    points: SolarPvForecastPoint[];
+  };
+  soiling: {
+    status: string;
+    soiling_ratio_current: number | null;
+    estimated_soiling_rate_pct_day: number | null;
+    cleaning_events_detected: number;
+    wash_recovery_pct: number | null;
+    analyzed_days: number;
+    evidence_notes: string[];
+    missing_evidence: string[];
+  };
+  degradation: {
+    status: string;
+    annualized_degradation_pct_year: number | null;
+    confidence_interval_95: [number, number] | null;
+    data_duration_days: number;
+    is_statistically_defensible: boolean;
+    normalization_method: string;
+    sample_points_analyzed: number;
+    scientific_warning: string | null;
+    evidence_notes: string[];
+  };
+  anomaly_summary: {
+    total_detected: number;
+    events: Array<{
+      event_id: string;
+      asset_id: string;
+      start_timestamp: string;
+      end_timestamp: string;
+      classification: string;
+      severity: string;
+      confidence: number | null;
+      evidence: {
+        mean_irradiance_poa: number;
+        mean_expected_power_kw: number;
+        mean_actual_power_kw: number;
+        power_deficit_pct: number;
+        inverter_status_observed: string;
+        evidence_notes: string[];
+      };
+    }>;
+  };
+  maintenance: {
+    recommendation_count: number;
+    recommendations: Array<{
+      recommendation_id: string;
+      asset_id: string;
+      priority: string;
+      analysis_period: string;
+      reason: string;
+      evidence: string[];
+      recommended_inspection: string;
+      uncertainty: string;
+      data_limitations: string[];
+    }>;
+  };
+  coupled_dispatch_example: SolarCoupledDispatchDecision;
+}
+

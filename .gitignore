@@ -24,6 +24,7 @@ __pycache__/
 logs/*.log
 logs/*.pid
 data/datasets/active_market_dataset.csv
+data/datasets/kaggle_solar/*_inverters.csv
 backend/data/
 ml_service/data/
 
@@ -31,3 +32,4 @@ ml_service/data/
 .env
 .DS_Store
 Thumbs.db
+

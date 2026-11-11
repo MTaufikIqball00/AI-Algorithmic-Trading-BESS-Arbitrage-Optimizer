@@ -42,6 +42,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Optional Solar PV Intelligence Module Router
+_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+try:
+    from solar_pv.integration.router import router as solar_pv_router
+    app.include_router(solar_pv_router)
+except Exception as _e:
+    print(f"Notice: Solar PV router not loaded: {_e}")
+
 def resolve_dataset_path(path: Optional[str] = None) -> str:
     # 1. If explicit path exists, check and return it
     if path:

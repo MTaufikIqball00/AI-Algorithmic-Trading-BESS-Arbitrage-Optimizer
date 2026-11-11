@@ -29,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "market", label: "Market & Forecast" },
+    { id: "solar", label: "Solar PV & O&M" },
     { id: "battery", label: "Battery Digital Twin" },
     { id: "strategy", label: "Strategy Lab (PPO)" },
     { id: "dispatch", label: "Dispatch Planner" },

@@ -19,6 +19,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import { api } from "../services/api";
 
 export const StrategyLabTab: React.FC = () => {
   const [episodes, setEpisodes] = useState(15);
@@ -42,8 +43,7 @@ export const StrategyLabTab: React.FC = () => {
   const handleTrainPpo = async () => {
     setIsTraining(true);
     try {
-      const resp = await fetch("/api/forecast/predict?horizon=24");
-      // Call backend or ML service
+      await api.getForecastPredict(24).catch(() => null);
       setTimeout(() => {
         setIsTraining(false);
         setTrainingOutput({
@@ -51,7 +51,7 @@ export const StrategyLabTab: React.FC = () => {
           best_pnl: 18600,
           episodes_run: episodes,
         });
-      }, 1500);
+      }, 900);
     } catch {
       setIsTraining(false);
     }

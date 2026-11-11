@@ -5,6 +5,7 @@ pub mod forecast;
 pub mod health;
 pub mod market;
 pub mod orders;
+pub mod solar;
 pub mod strategy;
 
 use crate::state::AppState;
@@ -32,6 +33,14 @@ pub fn app_router(state: AppState) -> Router {
         .route("/api/forecast/predict", get(forecast::predict_forecast))
         .route("/api/forecast/train", post(forecast::train_forecast))
         .route("/api/forecast/metrics", get(forecast::get_forecast_metrics))
+        // Solar PV Analytics & Hybrid BESS Integration
+        .route("/api/solar/summary", get(solar::get_solar_summary))
+        .route("/api/solar/forecast", get(solar::predict_solar_forecast))
+        .route("/api/solar/train", post(solar::train_solar_forecast))
+        .route(
+            "/api/solar/coupled-dispatch",
+            post(solar::simulate_coupled_dispatch),
+        )
         // Strategy & Backtesting
         .route("/api/strategy/backtest", post(strategy::run_backtest))
         .route(
@@ -48,3 +57,4 @@ pub fn app_router(state: AppState) -> Router {
         .route("/api/audit/logs", get(audit::get_audit_logs))
         .with_state(state)
 }
+

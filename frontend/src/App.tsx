@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Header } from "./components/Header";
 import { OverviewTab } from "./components/OverviewTab";
 import { MarketTab } from "./components/MarketTab";
+import { SolarPvTab } from "./components/SolarPvTab";
 import { BatteryTwinTab } from "./components/BatteryTwinTab";
 import { StrategyLabTab } from "./components/StrategyLabTab";
 import { DispatchPlannerTab } from "./components/DispatchPlannerTab";
@@ -22,6 +23,7 @@ import {
   DispatchPlanResponse,
   PaperOrder,
   AuditEvent,
+  SolarPvSummaryResponse,
 } from "./types";
 
 export function App() {
@@ -34,6 +36,7 @@ export function App() {
   const [dispatchPlan, setDispatchPlan] = useState<DispatchPlanResponse | null>(null);
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [forecastMetrics, setForecastMetrics] = useState<ForecastMetrics | null>(null);
+  const [solarSummary, setSolarSummary] = useState<SolarPvSummaryResponse | null>(null);
   const [backtestResult, setBacktestResult] = useState<BacktestResponse | null>(null);
   const [sensitivity, setSensitivity] = useState<SensitivityResponse | null>(null);
   const [orders, setOrders] = useState<PaperOrder[]>([]);
@@ -58,6 +61,7 @@ export function App() {
         ordResp,
         auditResp,
         sensResp,
+        solResp,
       ] = await Promise.all([
         api.getHealth().catch(() => null),
         api.getMarketSummary().catch(() => null),
@@ -70,6 +74,7 @@ export function App() {
         api.getOrders().catch(() => ({ status: "err", count: 0, orders: [] })),
         api.getAuditLogs().catch(() => ({ status: "err", count: 0, logs: [] })),
         api.getSensitivity("round_trip_efficiency").catch(() => null),
+        api.getSolarSummary("xgboost").catch(() => null),
       ]);
 
       if (h) setHealth(h);
@@ -83,6 +88,7 @@ export function App() {
       if (ordResp?.orders) setOrders(ordResp.orders);
       if (auditResp?.logs) setAuditLogs(auditResp.logs);
       if (sensResp) setSensitivity(sensResp);
+      if (solResp) setSolarSummary(solResp);
 
       // Trigger automatic initial backtest to populate charts
       api
@@ -247,6 +253,16 @@ export function App() {
                 metrics={forecastMetrics}
                 onTrainModel={handleTrainModel}
                 onImportCsv={handleImportCsv}
+              />
+            )}
+
+            {activeTab === "solar" && (
+              <SolarPvTab
+                solarSummary={solarSummary}
+                onRefreshSolar={async (modelType) => {
+                  const s = await api.getSolarSummary(modelType).catch(() => null);
+                  if (s) setSolarSummary(s);
+                }}
               />
             )}
 
